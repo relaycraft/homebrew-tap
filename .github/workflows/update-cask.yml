@@ -1,0 +1,64 @@
+name: Update RelayCraft Cask
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Daily at 00:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Tap Repo
+        uses: actions/checkout@v4
+
+      - name: Check latest RelayCraft release
+        id: check_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 1. Fetch the latest release tag
+          LATEST_TAG=$(gh release view --repo relaycraft/relaycraft --json tagName -q .tagName)
+          VERSION=${LATEST_TAG#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # 2. Get current version in Cask
+          CURRENT_VERSION=$(grep -oE 'version "[^"]+"' Casks/relaycraft.rb | cut -d '"' -f 2)
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Update Cask if new version exists
+        if: steps.check_release.outputs.version != steps.check_release.outputs.current_version
+        env:
+          NEW_VERSION: ${{ steps.check_release.outputs.version }}
+          # Path to the public checksums.txt
+          CHECKSUM_URL: "https://github.com/relaycraft/relaycraft/releases/download/v${{ steps.check_release.outputs.version }}/checksums.txt"
+        run: |
+          echo "🚀 New version found: $NEW_VERSION"
+          
+          # 1. Download only the small checksums.txt file
+          curl -sL $CHECKSUM_URL -o checksums.txt
+          
+          # 2. Extract the SHA256 for the DMG file from the checksums.txt
+          # It looks for the line ending with 'universal-apple-darwin.dmg'
+          SHA256=$(grep "universal-apple-darwin.dmg" checksums.txt | cut -d ' ' -f 1)
+          
+          if [ -z "$SHA256" ]; then
+            echo "❌ Failed to find SHA256 for DMG in checksums.txt"
+            exit 1
+          fi
+          
+          echo "✅ Found SHA256: $SHA256"
+          
+          # 3. Update the Cask file
+          sed -i "s/version \".*\"/version \"$NEW_VERSION\"/" Casks/relaycraft.rb
+          sed -i "s/sha256 \".*\"/sha256 \"$SHA256\"/" Casks/relaycraft.rb
+          
+          # 4. Commit and Push
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/relaycraft.rb
+          git commit -m "chore(cask): bump relaycraft to $NEW_VERSION"
+          git push
