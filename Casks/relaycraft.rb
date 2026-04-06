@@ -1,6 +1,6 @@
 cask "relaycraft" do
-  version "1.0.0-rc.17"
-  sha256 "80479e17004108b1dcc6d3304c771f2f2a4c7199b81c6e82f22b103f4ed0dd82"
+  version "1.0.0"
+  sha256 "61bd13c45ea1a365153e7b9b5114980ac873f481fbe570de353c457f852f8966"
 
   url "https://github.com/relaycraft/relaycraft/releases/download/v#{version}/RelayCraft_#{version}_universal-apple-darwin.dmg"
   name "RelayCraft"
